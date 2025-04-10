@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "trade-modeling-research"
+version = "0.1.0"
+description = ""
+authors = ["Atharv Attri <atharv260107@gmail.com>"]
+readme = "README.md"
+packages = [{include = "trade_modeling_research"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+alpaca-py = "^0.39.1"
+pandas = "^2.2.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
