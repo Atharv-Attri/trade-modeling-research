@@ -5,16 +5,22 @@ import gymnasium as gym
 import gym_trading_env
 import numpy as np
 
+
+
+pd.set_option('future.no_silent_downcasting', True)
 symbol = "PLTR"
 timeframe = "1h"
 end_date = datetime.now()
-start_date = end_date - timedelta(days=3)
+start_date = end_date - timedelta(days=60)
 
 print(f"Fetching {symbol} data for the past 3 days with a {timeframe} timeframe (extended hours)...")
-df = get_stock_data(symbol=symbol, start_date=start_date, end_date=end_date, tf=timeframe, extended=True, cached=False)
+#df = get_stock_data(symbol=symbol, start_date=start_date, end_date=end_date, tf=timeframe, extended=True, cached=False)
 
-df = pd.read_csv("../cache/PLTR_2025-04-07_2025-04-10_1h_ext.csv", parse_dates=["datetime"])
+df = pd.read_csv("../data/PLTR_2025-02-09_2025-04-10_1h_ext.csv", parse_dates=["datetime"])
+print(df.index)
 df.set_index("datetime", inplace=True)
+if df.index.tz is not None:
+    df.index = df.index.tz_localize(None)
 df.sort_index(inplace=True)
 df.index = df.index.tz_localize(None)
 
@@ -42,6 +48,8 @@ env = gym.make("TradingEnv",
         positions = [ -1, 0, 1], # -1 (=SHORT), 0(=OUT), +1 (=LONG)
         trading_fees = 0.00/100, # 0.01% per stock buy / sell (Binance fees)
         borrow_interest_rate= 0.000/100, # 0.0003% per timestep (one timestep = 1h here)
+        initial_position=0,
+
     )
 
 done, truncated = False, False
