@@ -175,5 +175,11 @@ cython_debug/
 .pypirc
 
 #data files
-.csv
-.json
+*.json
+*/*.json
+*/*.csv
+*.csv
+*.pkl
+*/*.pkl
+*.zip
+*/*.zip

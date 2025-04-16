@@ -10,6 +10,15 @@ packages = [{include = "trade_modeling_research"}]
 python = "^3.10"
 alpaca-py = "^0.39.1"
 pandas = "^2.2.3"
+dotenv = "^0.9.9"
+gym-trading-env = "^0.3.5"
+matplotlib = "^3.10.1"
+streamlit = "^1.44.1"
+plotly = "^6.0.1"
+rich = "^14.0.0"
+pandas-market-calendars = "^5.0.0"
+torch = "^2.6.0"
+stable-baselines3 = "^2.6.0"
 
 
 [build-system]
