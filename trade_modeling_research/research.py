@@ -21,10 +21,12 @@ from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.monitor import Monitor
 
 
-from rewards import emotion_reward_function, reward_euphoric_reckless, reward_confident_aware
+from rewards import reward_euphoric_reckless, reward_confident_aware, reward_risk_averse_mindful
 import pandas as pd
 from rewards import emotion_counts
 from ordered_trading_env import OrderedMultiDatasetTradingEnv
+
+from logger import MetricsLogger
 
 class Research:
     def __init__(self, max_episode_duration=30, vectors=10):
@@ -38,14 +40,23 @@ class Research:
             df.index = df.index.tz_localize(None)
         df.sort_index(inplace=True)
 
+        # --- Patch to ensure 'close' is defined ---
+        if "close" not in df.columns and "data_close" in df.columns:
+            df["close"] = df["data_close"]
+
+        # --- Safety fallback if 'close' is still missing ---
+        if "close" not in df.columns:
+            raise ValueError("'close' column is required in dataset and was not found.")
+
         df["feature_close"] = df["close"].pct_change()
         df["feature_open"] = df["open"] / df["close"]
         df["feature_high"] = df["high"] / df["close"]
         df["feature_low"] = df["low"] / df["close"]
-        df["feature_volume"] = df["volume"]
+        #df["feature_volume"] = df["volume"]
 
         df.dropna(inplace=True)
         return df
+
    
     def make_wrapped_env(self):
         raw_env = gym.make(
@@ -61,27 +72,7 @@ class Research:
         )
         return wrappers.StableEnvWrapper(raw_env) 
 
-    def run_env(self, episodes=100):
-        self.env = gym.make(
-            "MultiDatasetTradingEnv",
-            dataset_dir="../data/raw_data/*.pkl",
-            preprocess=self.preprocess,
-            positions=[-1, 0, 1],  # SHORT, OUT, LONG
-            trading_fees=0.00 / 100,
-            borrow_interest_rate=0.000 / 100,
-            initial_position=1,
-        )
-
-        for _ in range(episodes):
-            done, truncated = False, False
-            observation, info = self.env.reset()
-
-            while not done and not truncated:
-                action = self.env.action_space.sample()
-                observation, reward, done, truncated, info = self.env.step(action)
-
-        self.env.save_for_render(dir="../render_logs")
-        
+   
     def filter_short_datasets(self, min_rows=15):
         dataset_paths = glob.glob("../data/raw_data/*.pkl")
 
@@ -98,62 +89,8 @@ class Research:
                 os.rename(path, target_path)
 
             
-    def run_vector_env(self, episodes=100, min_df=45):
-        self.filter_short_datasets(min_df)
-        self.env = SyncVectorEnv([self.make_wrapped_env for _ in range(3)])
-
-        for episode in range(episodes):
-            terminated = [False] * self.env.num_envs
-            obs, info = self.env.reset()
-            step_count = 0
-            MAX_STEPS = 1000
-
-            while not all(terminated) and step_count < MAX_STEPS:
-                actions = [
-                    self.env.single_action_space.sample() if not terminated[i] else 0
-                    for i in range(self.env.num_envs)
-                ]
-                obs, reward, done, truncated, info = self.env.step(actions)
-
-                # Update terminated status
-                terminated = [t or d or tr for t, d, tr in zip(terminated, done, truncated)]
-
-                print(f"step {step_count} | done: {done}, truncated: {truncated} | terminated: {terminated}")
-                step_count += 1
-                
-    def train_with_a2c(self, total_timesteps=100_000):
-        print("[bold green]Filtering datasets before training...")
-        self.filter_short_datasets(min_rows=45)
-
-        print("[bold green]Preparing environment for A2C training...")
-        def make_env():
-            raw_env = gym.make(
-                "MultiDatasetTradingEnv",
-                dataset_dir="../data/raw_data/*.pkl",
-                preprocess=self.preprocess,
-                positions=[-1, 0, 1],
-                trading_fees=0.0,
-                borrow_interest_rate=0.0,
-                initial_position=1,
-                max_episode_duration=30,
-                verbose=0,
-            )
-            wrapped = wrappers.StableEnvWrapper(raw_env)
-            return Monitor(wrapped)
-
-        self.env = SubprocVecEnv([make_env for _ in range(5)])
-        print(f"[bold blue]Training A2C for {total_timesteps:,} timesteps...")
-        model = A2C("MlpPolicy", self.env, verbose=1)
-        model.learn(total_timesteps=total_timesteps)
-
-        os.makedirs("../models", exist_ok=True)
-        model.save("../models/a2c_trading_model")
-        print("[bold green]Model saved to [bold]/models/a2c_trading_model")
-        print("[bold green]Model saved to [bold]/models/a2c_trading_model")
-
-        self.evaluate_model(model, make_env)
-
-    def train_with_ppo(self, total_timesteps=500_000, reward=emotion_reward_function):
+    
+    def train_with_ppo(self, total_timesteps=500_000, reward=reward_confident_aware):
         print("[bold green]Filtering datasets before training...")
         self.filter_short_datasets(min_rows=int(self.max_episode_duration *2))
 
@@ -191,8 +128,10 @@ class Research:
             batch_size=512,       
             normalize_advantage=True,
         )
+        csv_logger = MetricsLogger(filename=f"PPO_{reward.__name__}.csv")
 
-        model.learn(total_timesteps=total_timesteps)
+
+        model.learn(total_timesteps=total_timesteps, callback=csv_logger)
 
         os.makedirs("../models", exist_ok=True)
         model.save(f"../models/ppo_{reward.__name__}")
@@ -206,7 +145,6 @@ class Research:
             print(f"  • {emotion.title():<10} : {count} ({pct:.1f}%)")
             
         
-    
     def evaluate_model(self, model, env_fn, n_eval_episodes=10):
         returns = []
 
@@ -255,5 +193,6 @@ class Research:
 if __name__ == "__main__":
     research = Research(max_episode_duration=96, vectors=12)
     #research.clear_all()
-    #research.get_data(days=200, tf='5m', spike=True)
-    research.train_with_ppo(total_timesteps=1_000_000, reward=reward_confident_aware)
+    #research.get_data(days=500, tf='5m', spike=True)
+    research.train_with_ppo(total_timesteps=1_000_000, reward=reward_risk_averse_mindful)
+    

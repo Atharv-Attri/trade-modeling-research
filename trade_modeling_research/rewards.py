@@ -149,5 +149,79 @@ def reward_confident_aware(history):
     return float(reward)
 
 
-def emotion_reward_function(history):
-    return
+
+def reward_risk_averse_mindful(history):
+    global emotion_counts, neutral_counter
+
+    try:
+        price_now = history["data_close", -1]
+        price_prev = history["data_close", -2]
+        position_now = history["position", -1]
+        position_prev = history["position", -2]
+        portfolio_now = history["portfolio_valuation", -1]
+        portfolio_prev = history["portfolio_valuation", -2]
+        time_now = history["date", -1]
+        time_prev = history["date", -2]
+    except (KeyError, IndexError):
+        return 0.0
+
+    # Calculate position duration from historical data
+    position_duration = 1
+    for i in range(2, len(history["position"])):
+        if history["position", -i] == position_now:
+            position_duration += 1
+        else:
+            break
+
+    timeframe_min = (time_now - time_prev) / np.timedelta64(1, 'm')
+    scale = max(timeframe_min, 1)
+
+    price_change = (price_now - price_prev) / max(price_prev, 1e-8)
+    portfolio_return = (portfolio_now - portfolio_prev) / max(portfolio_prev, 1e-8)
+    abs_position = abs(position_now)
+    position_pnl = position_now * price_change if position_now != 0 else 0
+
+    # Threshold adjustments
+    high_volatility = 0.007 * scale
+    mild_volatility = 0.0025 * scale
+    sharp_loss = -0.004 * scale
+    steady_gain = 0.0018 * scale
+
+    reward = 1.5 * portfolio_return
+
+    # Dynamic overhold penalty
+    if position_pnl < -0.002 * scale:
+        penalty = -0.6 * abs(position_pnl) * min(position_duration, 5)
+        reward += penalty
+        emotion_counts["regret-overhold"] += 1
+
+        if abs_position == 1:
+            reward -= 0.4
+            emotion_counts["regret-overexposed"] += 1
+
+    # Conviction rewards
+    if position_now == position_prev and abs_position > 0:
+        if position_pnl > 0.0012 * scale and portfolio_return > 0:
+            reward += 0.35 * min(position_duration, 4)
+        elif price_change * position_now > 0:
+            reward += 0.15
+
+    # Smart exit logic
+    if position_prev != 0 and position_now == 0:
+        if portfolio_return > 0.0025:
+            reward += 0.7 * portfolio_return
+            emotion_counts["euphoria-takeprofit"] += 1
+        elif portfolio_return < -0.0025:
+            reward -= 0.5 * abs(portfolio_return)
+            emotion_counts["regret-lateexit"] += 1
+
+    # Neutral position handling
+    if position_now == 0:
+        neutral_counter += 1
+        if neutral_counter > 4:
+            reward -= 0.1 * (neutral_counter - 4)
+            emotion_counts["inaction-out"] += 1
+    else:
+        neutral_counter = 0
+    return float(reward)
+

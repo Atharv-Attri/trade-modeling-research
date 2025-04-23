@@ -21,11 +21,44 @@ class OrderedMultiDatasetTradingEnv(MultiDatasetTradingEnv):
 
     def reset(self, **kwargs):
         self._choose_dataset()
-
+        # pick your start however you like…
         if self.random_start:
-            max_start = len(self.df) - self.episode_length
+            max_start = len(self.df) - self.max_episode_duration
             self.current_index = random.randint(0, max(0, max_start))
         else:
             self.current_index = 0
 
-        return super().reset(**kwargs)
+        # now call the parent — it WILL randomize _idx 
+        obs, info = super().reset(**kwargs)
+
+        # but immediately force it back to chosen start
+        self._idx = self.current_index
+
+        return obs, info
+    
+    
+    def _set_df(self, df):
+        df = df.copy()
+        
+        if "close" not in df.columns and "data_close" in df.columns:
+            df["close"] = df["data_close"]
+
+        self._features_columns = [col for col in df.columns if "feature" in col]
+        self._info_columns = list(set(list(df.columns)) - set(self._features_columns))
+
+        if "close" not in self._info_columns:
+            self._info_columns.append("close")
+
+        self._nb_features = len(self._features_columns)
+        self._nb_static_features = self._nb_features
+
+        for i, dynamic_func in enumerate(self.dynamic_feature_functions):
+            df[f"dynamic_feature__{i}"] = 0
+            self._features_columns.append(f"dynamic_feature__{i}")
+            self._nb_features += 1
+
+        self.df = df
+        self._obs_array = df[self._features_columns].values.astype("float32")
+        self._info_array = df[self._info_columns].values
+        self._price_array = df["close"].values
+

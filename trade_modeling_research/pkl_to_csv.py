@@ -1,7 +1,5 @@
 import pandas as pd
 
-# Load the pickle file (replace 'your_file.pkl' with your pickle file path)
-df = pd.read_pickle('../render_logs\PLTR_2025-04-10_19-56-23.pkl')
+df = pd.read_pickle('../data/filtered_out\QUBT_2024-12-18_2024-12-19.pkl')
 
-# Save as CSV (replace 'output.csv' with the desired output file path)
-df.to_csv('../render_logs/output.csv', index=False)  # Use `index=False` if you don't want to save the index column
+df.to_csv('./output.csv', index=False) 
