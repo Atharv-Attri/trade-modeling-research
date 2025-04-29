@@ -12,6 +12,11 @@ from zoneinfo import ZoneInfo
 from rich import print
 import warnings 
 import pandas_market_calendars as mcal
+import random
+import os
+import shutil
+
+
 
 def cast_timeframe(timeframe):
     pattern = re.compile(r'(\d+)([mhdwM])')
@@ -147,6 +152,66 @@ def get_dates(tf="4h", cac=True, ext=True):
             if not df.empty:
                 df.to_pickle(out_file)
 
+def move_test_data(split_ratio=0.2):
+    raw_dir = "../data/raw_data"
+    test_dir = "../data/test_data"
+    os.makedirs(test_dir, exist_ok=True)
+
+    all_files = [f for f in os.listdir(raw_dir) if f.endswith(".pkl")]
+
+    # Shuffle for randomness
+    random.seed(42)
+    random.shuffle(all_files)
+
+    # Take 20% for test set
+    test_count = int(len(all_files) * split_ratio)
+    test_files = all_files[:test_count]
+
+    for file in test_files:
+        src = os.path.join(raw_dir, file)
+        dst = os.path.join(test_dir, file)
+        shutil.move(src, dst)  # Move instead of copy
+
+    print(f"[green]Moved {len(test_files)} files to test_data[/green]")
+
+
+def fetch_test_data_from_csv(tf: str = "5m", start_str="2025-01-01", cached=True, extended=False):
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    csv_path = "../data/processed/test_2025.csv"
+    df = pd.read_csv(csv_path)
+
+    if "ticker" not in df.columns:
+        raise ValueError("CSV must contain a 'ticker' column")
+
+    tickers = df["ticker"].dropna().unique().tolist()
+    start_date = datetime.strptime(start_str, "%Y-%m-%d").replace(tzinfo=ZoneInfo("US/Pacific"))
+    end_date = (datetime.now() - timedelta(days=1)).replace(tzinfo=ZoneInfo("US/Pacific"))  # avoid SIP errors
+
+    test_data_dir = "../data/test_2025"
+    os.makedirs(test_data_dir, exist_ok=True)
+
+    for symbol in tickers:
+        used_start_str = start_date.strftime('%Y-%m-%d')
+        used_end_str = end_date.strftime('%Y-%m-%d')
+        out_file = f"{test_data_dir}/{symbol}_{used_start_str}_{used_end_str}.pkl"
+
+        if os.path.exists(out_file):
+            print(f"[green]File exists: {out_file}, skipping...[/green]")
+            continue
+
+        start_utc = start_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+        end_utc = end_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+        df_stock = get_stock_data(symbol, start_utc, end_utc, tf, cached=cached, extended=extended)
+        if not df_stock.empty:
+            df_stock.to_pickle(out_file)
+            print(f"[blue]Saved {symbol} to test_2025[/blue]")
+        else:
+            print(f"[red]Failed or empty data for {symbol}[/red]")
+
+
 
 
 def clear_cache():
@@ -178,6 +243,5 @@ def clear_filtered_out():
             os.remove(file_path)
 
 if __name__ == "__main__":
-    clear_raw_data()
-    get_dates()
+    fetch_test_data_from_csv()
 

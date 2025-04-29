@@ -4,14 +4,15 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.style as style
 
-# Use dark background for plots
-style.use('dark_background')
+# --- Light Mode Plot Styling ---
+style.use('default')
+plt.rcParams["font.family"] = "sans-serif"
 
 # --- Config ---
 LOG_DIR = "../render_logs/training_logs"
 st.set_page_config(page_title="Training Log Visualizer", layout="wide")
 
-st.title("RL Training Log Visualizer")
+st.title("🧠 RL Training Log Visualizer")
 
 # --- Sidebar ---
 st.sidebar.header("Select Log File")
@@ -55,15 +56,32 @@ for metric in metrics:
         if show_native:
             st.line_chart(df.set_index("timesteps")[[metric]])
         else:
-            fig, ax = plt.subplots(figsize=(9, 4))
-            ax.plot(x, df[metric], linewidth=2, color='cyan')
-            ax.set_facecolor('#111111')
-            fig.patch.set_facecolor('#111111')
-            ax.set_xlabel("Timesteps", color='white')
-            ax.set_ylabel(metric, color='white')
-            ax.set_title(metric.replace('_', ' ').title(), color='white')
-            ax.tick_params(colors='white')
-            ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.6)
+            fig, ax = plt.subplots(figsize=(10, 5))
+
+            # Line plot
+            ax.plot(x, df[metric], linewidth=2.5, color='#1f77b4')  # Deep blue
+
+            # Backgrounds
+            ax.set_facecolor('white')
+            fig.patch.set_facecolor('white')
+
+            # Labels & Title
+            ax.set_xlabel("Timesteps", color='black', fontweight='bold', fontsize=14)
+            ax.set_ylabel(metric.replace('_', ' ').title(), color='black', fontweight='bold', fontsize=14)
+            ax.set_title(metric.replace('_', ' ').title(), color='black', fontweight='bold', fontsize=16, pad=15)
+
+            # Ticks
+            ax.tick_params(axis='both', colors='black', labelsize=12, width=1.5)
+
+            # Grid - subtle but clean
+            ax.grid(True, color='#cccccc', linestyle='--', linewidth=0.6)
+
+            # Border lines
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+                spine.set_linewidth(1.2)
+
+            # Show plot
             st.pyplot(fig)
 
         st.markdown("---")

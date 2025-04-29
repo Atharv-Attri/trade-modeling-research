@@ -66,7 +66,7 @@ class Research:
             positions=[-1, 0, 1],
             trading_fees=0.0,
             borrow_interest_rate=0.0,
-            initial_position=1,
+            initial_position=np.random.choice([-1.0, 0.0, 1.0]),
             max_episode_duration=30,
             verbose=1,
         )
@@ -102,7 +102,7 @@ class Research:
                 positions=[-1.0, -0.5, 0.0, 0.5, 1.0],
                 trading_fees=0.0,
                 borrow_interest_rate=0.0,
-                initial_position=1,
+                initial_position=np.random.choice([-1.0,  0.0,  1.0]),
                 max_episode_duration=96,
                 shuffle_datasets=False,      
                 random_start=False,          
@@ -121,9 +121,9 @@ class Research:
             "MlpPolicy",
             self.env,
             verbose=1,
-            learning_rate=0.0005,
-            clip_range=0.15,
-            ent_coef=0.02,
+            learning_rate=0.001,
+            clip_range=0.3,
+            ent_coef=0.055,
             n_steps=4096,        
             batch_size=512,       
             normalize_advantage=True,
@@ -169,6 +169,7 @@ class Research:
         trends.get_top_10(days)
         trends.get_dates(spike)
         data_helper.get_dates(tf)
+        data_helper.move_test_data()
 
     def clear_render_logs(self):
         data_helper.clear_render_logs()
@@ -191,8 +192,11 @@ class Research:
 
 
 if __name__ == "__main__":
-    research = Research(max_episode_duration=96, vectors=12)
+    research = Research(max_episode_duration=96, vectors=18)
     #research.clear_all()
     #research.get_data(days=500, tf='5m', spike=True)
+    #research.train_with_ppo(total_timesteps=1_000_000, reward=reward_euphoric_reckless)
+    #research.train_with_ppo(total_timesteps=1_000_000, reward=reward_confident_aware)
     research.train_with_ppo(total_timesteps=1_000_000, reward=reward_risk_averse_mindful)
+
     
